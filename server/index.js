@@ -1,58 +1,64 @@
-const express = require("express");
-const cors = require("cors");
-const { execFile } = require("child_process");
-const { SerialPort } = require("serialport");
+const express = require('express');
+const cors = require('cors');
+const util = require('util');
+const path = require('path');
+const fs = require('fs');
+const { SerialPort } = require('serialport');
 
+// Promisified execFile
+const execFile = util.promisify(require('child_process').execFile);
+const PYTHON = process.env.PYTHON_PATH || 'python';
 const app = express();
 const PORT = 5001;
 
 app.use(cors());
 
-// 1) Check status of a given port (default “COM7”)
-app.get("/status", async (req, res) => {
-  const device = (req.query.device || "COM7").toUpperCase();
+// Check file exists
+const scriptExists = (p) => fs.existsSync(p);
+// Safe normalize
+const normalizePort = (info) => String(info.path ?? info.comName ?? '').toUpperCase();
+
+app.get('/status', async (req, res) => {
+  const device = String(req.query.device ?? '').toUpperCase() || 'COM7';
   try {
     const ports = await SerialPort.list();
-    const connected = ports.some(p => p.path.toUpperCase() === device);
+    const connected = ports.some(p => normalizePort(p) === device);
     res.json({ connected });
-  } catch (err) {
-    console.error("COM list error:", err);
-    res.status(500).json({ error: "Failed to list COM ports" });
+  } catch (e) {
+    console.error('Status error:', e);
+    res.status(500).json({ error: 'Failed to check device status' });
   }
 });
 
-// 2) Start prediction, passing ?device=COM7
-app.get("/start", (req, res) => {
-  const device = (req.query.device || "COM7").toUpperCase();
+app.get('/start', async (req, res) => {
+  const device = String(req.query.device ?? '').toUpperCase();
+  const model = String(req.query.model ?? '').toLowerCase();
+  if (!['rf', 'bilstm'].includes(model)) {
+    return res.status(400).json({ error: "Model must be 'rf' or 'bilstm'" });
+  }
 
-  SerialPort.list()
-    .then(ports => {
-      if (!ports.some(p => p.path.toUpperCase() === device)) {
-        return res.status(400).json({ status: "error", error: `${device} not connected` });
-      }
+  try {
+    const ports = await SerialPort.list();
+    if (!ports.some(p => normalizePort(p) === device)) {
+      return res.status(400).json({ error: `Device ${device} not connected` });
+    }
 
-      // Run our Python script with the port as an argument
-      execFile(
-        "python",
-        ["server/predict_sign.py", device],
-        { maxBuffer: 1024 * 1024 },
-        (err, stdout, stderr) => {
-          if (err) {
-            console.error("Python error:", stderr || err.message);
-            return res.status(500).json({ status: "error", error: stderr || err.message });
-          }
-          // Python prints exactly one line: “<word> HH:MM:SS”
-          const result = stdout.trim().split("\n").pop();
-          res.json({ status: "Prediction started", result });
-        }
-      );
-    })
-    .catch(err => {
-      console.error("SerialPort.list fail:", err);
-      res.status(500).json({ status: "error", error: "Cannot check COM ports" });
-    });
+    const script = model === 'rf' ? 'predict_rf.py' : 'predict_sign.py';
+    const scriptPath = path.join(__dirname, script);
+    if (!scriptExists(scriptPath)) {
+      return res.status(500).json({ error: `Script not found: ${scriptPath}` });
+    }
+
+    const { stdout, stderr } = await execFile(PYTHON, [scriptPath, device], { maxBuffer: 1024 * 1024 });
+    if (stderr) console.error(`Python stderr:`, stderr);
+    const lines = stdout.trim().split(/\r?\n/);
+    const result = lines[lines.length - 1] || 'No output';
+    console.log(`Prediction [${model}]:`, result);
+    res.json({ result });
+  } catch (e) {
+    console.error('Prediction error:', e);
+    res.status(500).json({ error: 'Failed to run prediction' });
+  }
 });
 
-app.listen(PORT, () => {
-  console.log(`Backend listening at http://localhost:${PORT}`);
-});
+app.listen(PORT, () => console.log(`Server listening: http://localhost:${PORT}`));

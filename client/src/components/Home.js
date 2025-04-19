@@ -1,158 +1,283 @@
 import React, { useState, useEffect } from 'react';
 
-function Home() {
-  const [prediction, setPrediction] = useState("Waiting...");
-  const [error, setError] = useState("");
-  const [image, setImage] = useState("");
-  const [deviceStatus, setDeviceStatus] = useState("Initializing...");
-  const [isRunning, setIsRunning] = useState(false);
-  const [selectedPost, setSelectedPost] = useState("com7"); // Default to "com7"
+// Add your image mappings
+const PREDICTION_IMAGES = {
+  'HI': 'https://example.com/hi-image.jpg',
+  'HELLO': 'https://example.com/hello-image.jpg',
 
-  const defaultImage = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQ9jrYR3x8qxk7lY9M_3Klu8kcohdUueG8HNQ&s";
-  const hiImage = "https://images.squarespace-cdn.com/content/v1/579e10251b631bd12f08bf15/1516153745267-E7Q8SL6NHE8RLDYKEHC5/Early+language+parent+handouts+sign+language+hi.png";
+};
 
-  const startPrediction = async () => {
-    setError("");
-    setIsRunning(true);
-    setPrediction("Waiting...");
+const DEFAULT_IMAGE = '/flex.jpeg';
 
-    try {
-      const res = await fetch(`http://localhost:5001/start?device=${selectedPost}`); // Pass the selected post/device
-      const data = await res.json();
+export default function Home() {
+  const [prediction, setPrediction] = useState('');
+  const [error, setError] = useState('');
+  const [deviceStatus, setDeviceStatus] = useState('Checking...');
+  const [selectedModel, setSelectedModel] = useState('');
+  const [isPredicting, setIsPredicting] = useState(false);
+  const [predictionHistory, setPredictionHistory] = useState([]);
 
-      if (data.status === "Prediction started" && data.result) {
-        const result = data.result.trim().toLowerCase();
-        setPrediction(result || "Unknown");
-        setImage(result === "hi" ? hiImage : defaultImage);
-      } else {
-        setPrediction("Unknown");
-        setImage(defaultImage);
-        setError(data.error || "Device not connected or no result.");
-      }
-    } catch (err) {
-      console.error(err);
-      setError("Error starting prediction.");
-      setPrediction("Error");
-      setImage(defaultImage);
-    } finally {
-      setIsRunning(false);
-    }
+  const speakPrediction = (text) => {
+    const msg = new SpeechSynthesisUtterance(text);
+    msg.lang = 'en-US';
+    window.speechSynthesis.speak(msg);
   };
 
   const checkDeviceConnection = async () => {
     try {
-      const res = await fetch("http://localhost:5001/status");
-      const data = await res.json();
-      setDeviceStatus(data.connected ? "Device is ready to predict." : "Please connect the device.");
+      const res = await fetch('http://localhost:5001/status?device=COM7');
+      const { connected } = await res.json();
+      setDeviceStatus(connected ? 'Device READY' : 'Please connect device');
     } catch (err) {
-      console.error(err);
-      setError("Failed to communicate with backend");
-      setDeviceStatus("Connection error");
+      console.error('Status check error:', err);
+      setDeviceStatus('Connection error');
     }
   };
 
   useEffect(() => {
     checkDeviceConnection();
-    const interval = setInterval(checkDeviceConnection, 5000);
-    return () => clearInterval(interval);
+    const id = setInterval(checkDeviceConnection, 5000);
+    return () => clearInterval(id);
   }, []);
 
+  const startPrediction = async () => {
+    if (!selectedModel) return;
+    setError('');
+    setIsPredicting(true);
+    setPrediction('');
+
+    try {
+      const res = await fetch(`http://localhost:5001/start?device=COM7&model=${selectedModel}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Unknown error');
+
+      setPrediction(data.result);
+      speakPrediction(data.result);
+      setPredictionHistory(prev => [
+        { model: selectedModel, result: data.result, timestamp: new Date() },
+        ...prev,
+      ]);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setIsPredicting(false);
+    }
+  };
+
   return (
-    <div className="h-screen bg-gradient-to-br from-gray-50 to-gray-100 overflow-hidden">
-      <div className="h-full max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-2 p-2 lg:p-4">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-200 p-4">
+      <div className="max-w-7xl mx-auto flex flex-col lg:flex-row gap-6">
 
         {/* Left Panel */}
-        <div className="bg-white rounded-xl lg:rounded-2xl shadow-lg p-4 lg:p-6 flex flex-col h-full">
-          <div className="mb-2 lg:mb-4 flex-shrink-0">
-            <h1 className="text-2xl lg:text-3xl font-bold bg-gradient-to-r from-indigo-600 to-blue-500 bg-clip-text text-transparent">
-              Flex-Lingo
-            </h1>
-            <p className="text-xs lg:text-sm text-gray-500 mt-1">Real-time Sign Language Detection</p>
-          </div>
+        <div className="lg:w-1/2 bg-white rounded-2xl shadow-xl p-6 space-y-6">
+          <header className="text-center space-y-2">
+            <div className="inline-block relative">
+              {/* Decorative shape */}
+              <div className="absolute -inset-4 bg-blue-100/30 blur-xl rounded-full" />
 
-          <div className="relative group mb-2 lg:mb-4 flex-grow" style={{ maxHeight: '40vh' }}>
-            <div className="absolute inset-0 bg-gradient-to-r from-indigo-500 to-blue-400 rounded-xl blur opacity-25 group-hover:opacity-40 transition duration-1000"></div>
-            <div className="relative h-full w-full rounded-lg bg-gray-100 overflow-hidden border-4 border-white shadow-md">
-              <img 
-                src={image || defaultImage} 
-                alt="Prediction display" 
-                className="w-full h-full object-contain transition-opacity duration-500"
+              {/* Main title with gradient */}
+              <h1 className="text-3xl md:text-3xl font-bold bg-clip-text text-black relative">
+                FlexLingo : Sign Language Translation
+              </h1>
+            </div>
+          </header>
+
+          {/* Visualization Section */}
+          <div className="relative group">
+            <div className="w-full  overflow-hidden transition-all duration-300 hover:border-blue-300">
+              <img
+                src={prediction ? PREDICTION_IMAGES[prediction.toUpperCase()] || DEFAULT_IMAGE : DEFAULT_IMAGE}
+                alt="Sign Language Visualization"
+                className="w-full h-full object-contain p-4"
               />
-              <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-40">
-                <span className="text-3xl lg:text-4xl font-bold text-white drop-shadow-lg">
-                  {prediction === "hi" ? "👋" : "..." }
-                </span>
+            </div>
+            <div className="absolute bottom-4 left-4 bg-black/80 text-white px-3 py-1.5 rounded-full text-sm backdrop-blur-sm">
+              {prediction || 'Waiting for input...'}
+            </div>
+          </div>
+
+          {/* Status Cards */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className={`p-4 rounded-xl transition-colors ${deviceStatus === 'Device READY' ? 'bg-green-100' : 'bg-red-100'}`}>
+              <div className="flex items-center gap-3">
+                <div className={`w-2.5 h-2.5 rounded-full ${deviceStatus === 'Device READY' ? 'bg-green-600' : 'bg-red-600'}`} />
+                <div>
+                  <p className="text-xs font-medium text-gray-500">Device Status</p>
+                  <p className="text-sm font-semibold">{deviceStatus}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 bg-blue-100 rounded-xl">
+              <div className="flex items-center gap-3">
+                <div className="w-2.5 h-2.5 bg-blue-600 rounded-full" />
+                <div>
+                  <p className="text-xs font-medium text-gray-500">Active Model</p>
+                  <p className="text-sm font-semibold">
+                    {selectedModel ? selectedModel.toUpperCase() : 'None'}
+                  </p>
+                </div>
               </div>
             </div>
           </div>
 
-          <div className="space-y-2 lg:space-y-3 flex-shrink-0">
-            <div className="bg-indigo-50 p-2 lg:p-3 rounded-lg">
-              <div className="flex items-center justify-between mb-1">
-                <h3 className="text-xs lg:text-sm font-semibold text-indigo-800">System Status</h3>
-                <div className={`w-2 h-2 rounded-full ${deviceStatus.includes("ready") ? 'bg-green-500' : 'bg-amber-500 animate-pulse'}`}></div>
-              </div>
-              <p className="text-xs text-gray-600 font-medium truncate">{deviceStatus}</p>
+          {/* Model Selection */}
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold text-gray-900">Select Model</h3>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={() => setSelectedModel('rf')}
+                className={`p-4 rounded-xl transition-all ${selectedModel === 'rf'
+                  ? 'bg-blue-600 text-white ring-2 ring-blue-300'
+                  : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                  }`}
+              >
+                <span className="block text-sm font-medium">Random Forest</span>
+                <span className="block text-xs opacity-75 mt-1">Classic ML Model</span>
+              </button>
+
+              <button
+                onClick={() => setSelectedModel('bilstm')}
+                className={`p-4 rounded-xl transition-all ${selectedModel === 'bilstm'
+                  ? 'bg-purple-600 text-white ring-2 ring-purple-300'
+                  : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                  }`}
+              >
+                <span className="block text-sm font-medium">BiLSTM</span>
+                <span className="block text-xs opacity-75 mt-1">Deep Learning Model</span>
+              </button>
             </div>
+          </div>
 
-            <div className="bg-white border border-gray-200 p-2 lg:p-3 rounded-lg shadow-sm">
-              <h3 className="text-xs lg:text-sm font-semibold text-gray-800">Current Prediction</h3>
-              <div className="flex items-center justify-between mt-1">
-                <span className="text-lg lg:text-xl font-bold text-indigo-600">
-                  {prediction === "Waiting..." ? (
-                    <span className="text-gray-400">Processing...</span>
-                  ) : (
-                    prediction.toUpperCase()
-                  )}
-                </span>
-                {prediction === "Waiting..." && (
-                  <div className="animate-spin h-3 w-3 border-2 border-indigo-500 border-t-transparent rounded-full"></div>
-                )}
-              </div>
-            </div>
-
-            {error && (
-              <div className="bg-red-50 p-2 rounded-md border border-red-200 flex items-center">
-                <svg className="w-3 h-3 text-red-500 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clipRule="evenodd" />
-                </svg>
-                <span className="text-xs lg:text-sm text-red-600 font-medium truncate">{error}</span>
-              </div>
-            )}
-
+          {/* Prediction Controls */}
+          {selectedModel && (
             <button
               onClick={startPrediction}
-              className="bg-green-500 hover:bg-green-600 text-white font-semibold w-full py-2 rounded-lg transition duration-300 disabled:opacity-50"
-              disabled={isRunning}
+              disabled={isPredicting}
+              className="w-full py-3.5 px-6 bg-cyan-400 text-white rounded-xl font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isRunning ? "Running..." : "Start Prediction"}
+              {isPredicting ? (
+                <div className="flex items-center justify-center gap-2">
+                  <div className="w-4 h-4 border-2 border-white/50 border-t-white rounded-full animate-spin" />
+                  Processing...
+                </div>
+              ) : (
+                'Start Real-time Prediction'
+              )}
             </button>
-          </div>
+          )}
+
+          {/* Current Prediction */}
+          {prediction && (
+            <div className="p-4 bg-gray-50 rounded-xl border border-gray-200">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium text-gray-500">Latest Prediction</p>
+                  <p className="text-2xl font-bold text-gray-900">{prediction}</p>
+                </div>
+                <button
+                  onClick={() => speakPrediction(prediction)}
+                  className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
+                >
+                  <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072M17.95 6.05a8 8 0 010 11.9M6.343 9.657L14 2l1.414 1.414-7.657 7.657 7.657 7.657-1.414 1.414-7.657-7.657z" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Right Panel */}
-        <div className="bg-white rounded-xl lg:rounded-2xl shadow-lg p-4 lg:p-6 flex flex-col h-full">
-          <h2 className="text-lg lg:text-xl font-bold text-gray-800 mb-2 lg:mb-3">How it Works</h2>
-          <p className="text-sm text-gray-600">
-            Click "Start Prediction" to begin real-time gesture recognition using your Arduino sensor setup. The system reads sensor values, processes them using a trained model, and displays the interpreted sign language result.
-          </p>
+        <div className="lg:w-1/2 flex flex-col gap-6">
+          {/* Tutorial Section */}
+          <div className="bg-white rounded-2xl shadow-xl p-6">
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">Getting Started</h2>
+            <div className="space-y-4">
+              {[
+                {
+                  "icon": "🧤",
+                  "title": "Wear the Smart Glove",
+                  "text": "Gently wear the glove to begin capturing hand movements."
+                },
+                {
+                  "icon": "⚙️",
+                  "title": "Select Model",
+                  "text": "Choose between RF or BiLSTM model for hand gesture prediction."
+                },
+                {
+                  "icon": "🤟",
+                  "title": "Perform Sign Language",
+                  "text": "Make the desired sign language gesture while wearing the glove."
+                },
+                {
+                  "icon": "🗣️",
+                  "title": "See Predictions",
+                  "text": "Click the speaker icon to hear the pronunciation of the predicted gesture."
+                }
+              ]
+                .map((step, index) => (
+                  <div key={index} className="flex items-start gap-4 p-3 hover:bg-gray-50 rounded-xl transition-colors">
+                    <span className="text-2xl p-2">{step.icon}</span>
+                    <div>
+                      <h3 className="font-medium text-gray-900">{step.title}</h3>
+                      <p className="text-sm text-gray-500">{step.text}</p>
+                    </div>
+                  </div>
+                ))}
+            </div>
+          </div>
 
-          {/* Dropdown for selecting device */}
-          <div className="mt-4">
-            <select
-              value={selectedPost}
-              onChange={(e) => setSelectedPost(e.target.value)}
-              className="border p-2 rounded-md w-full"
-            >
-              <option value="com7">COM 7</option>
-              <option value="com8">COM 8</option>
-              <option value="com9">COM 9</option>
-            </select>
+          {/* Prediction History */}
+          <div className="bg-white rounded-2xl shadow-xl p-6 flex-1">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold text-gray-900">Prediction History</h2>
+              <button
+                onClick={() => setPredictionHistory([])}
+                className="text-sm text-gray-500 hover:text-gray-700 transition-colors"
+              >
+                Clear History
+              </button>
+            </div>
+
+            <div className="space-y-3 h-96 overflow-y-auto pr-2">
+              {predictionHistory.map((entry, index) => (
+                <div key={index} className="flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors">
+                  <div>
+                    <span className="text-xs font-medium text-blue-600 bg-blue-100 px-2 py-1 rounded-full">
+                      {entry.model.toUpperCase()}
+                    </span>
+                    <p className="mt-1 text-gray-900">{entry.result}</p>
+                  </div>
+                  <span className="text-xs text-gray-400">
+                    {new Date(entry.timestamp).toLocaleTimeString([], {
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}
+                  </span>
+                </div>
+              ))}
+
+              {!predictionHistory.length && (
+                <div className="py-8">
+                  <p className="text-gray-400">No predictions yet</p>
+                  <p className="text-sm text-gray-400 mt-1">Start translating to see history</p>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
+
+      {/* Error Toast */}
+      {error && (
+        <div className="fixed bottom-4 right-4 bg-red-100 border border-red-200 text-red-700 px-4 py-2 rounded-xl flex items-center gap-2 animate-slide-up">
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          <span>{error}</span>
+        </div>
+      )}
     </div>
   );
 }
-
-export default Home;

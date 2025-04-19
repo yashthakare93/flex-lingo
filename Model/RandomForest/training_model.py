@@ -8,17 +8,21 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report, confusion_matrix
 import joblib
 
-# Define the path to the dataset directory
+# ─── 1) Configuration ───────────────────────────────
 DATA_DIR = r"C:\Users\DELL\OneDrive\Desktop\flex-lingo\data"
+NUM_FEATURES = 10  # Only 10 features (no label column in CSV)
+gesture_map = {
+    "hi": 0,
+    "yes": 1,
+    "no": 2,
+    "rest": 3
+}
+labels_list = ["hi", "yes", "no", "rest"]
 
-# Initialize lists to store features and labels
+# ─── 2) Load dataset ────────────────────────────────
 features = []
 labels = []
 
-# Define a consistent number of columns (adjust based on your CSV data)
-consistent_num_columns = 11  # 5 Flex columns + 6 accelerometer/gyroscope columns
-
-# Loop through each folder (01, 02, 03) in the dataset directory
 for folder in os.listdir(DATA_DIR):
     folder_path = os.path.join(DATA_DIR, folder)
     
@@ -28,76 +32,84 @@ for folder in os.listdir(DATA_DIR):
             
             if file.endswith('.csv'):
                 data = pd.read_csv(file_path)
-                
-                if data.shape[1] != consistent_num_columns:
-                    print(f"Warning: {file} has {data.shape[1]} columns, expected {consistent_num_columns}.")
-                    continue
-                
-                for index, row in data.iterrows():
-                    features.append(row[:-1].values)
-                
-                if 'hi' in file:
-                    label = 0
-                elif 'ok' in file:
-                    label = 1
-                else:
-                    label = -1 
-                
-                labels.extend([label] * len(data))
 
+                if data.shape[1] != NUM_FEATURES:
+                    print(f" Skipping {file}: Expected {NUM_FEATURES} columns, got {data.shape[1]}")
+                    continue
+
+                matched = False
+                for gesture, label in gesture_map.items():
+                    if gesture in file.lower():
+                        features.extend(data.values)
+                        labels.extend([label] * len(data))
+                        matched = True
+                        break
+
+                if not matched:
+                    print(f" Unknown gesture in file name: {file}")
+
+print(f" Total samples loaded: {len(features)}")
+
+# ─── 3) Preprocessing ───────────────────────────────
 features = np.array(features)
 labels = np.array(labels)
 
-# Split the dataset into training and testing sets
-X_train, X_test, y_train, y_test = train_test_split(features, labels, test_size=0.2, random_state=42)
+if len(features) == 0:
+    raise ValueError(" No data loaded. Please check your dataset structure and file names.")
 
-# Initialize the Random Forest model
-rf_model = RandomForestClassifier(n_estimators=100,- random_state=42)
+# ─── 4) Train/Test Split ────────────────────────────
+X_train, X_test, y_train, y_test = train_test_split(
+    features, labels, test_size=0.2, random_state=42)
+
+# ─── 5) Train Model ─────────────────────────────────
+rf_model = RandomForestClassifier(n_estimators=100, random_state=42)
 rf_model.fit(X_train, y_train)
 
-# Evaluate the model
+# ─── 6) Evaluation ──────────────────────────────────
 train_accuracy = rf_model.score(X_train, y_train)
 test_accuracy = rf_model.score(X_test, y_test)
 
-print(f"Train Accuracy: {train_accuracy}")
-print(f"Test Accuracy: {test_accuracy}")
+print(f"\nTrain Accuracy: {train_accuracy:.4f}")
+print(f" Test Accuracy: {test_accuracy:.4f}")
 
-# Predictions
+# ─── 7) Report ──────────────────────────────────────
 y_pred = rf_model.predict(X_test)
+report = classification_report(y_test, y_pred, target_names=labels_list)
+print("\n Classification Report:")
+print(report)
 
-# Classification Report
-report = classification_report(y_test, y_pred, output_dict=True)
-print("\nClassification Report:")
-print(classification_report(y_test, y_pred))
+# ─── 8) Save model ──────────────────────────────────
+joblib.dump(rf_model, 'random_forest_model_10_features.pkl')
+print(" Random Forest model saved as 'random_forest_model_10_features.pkl'")
+
+# ─── 9) Visualizations ──────────────────────────────
 
 # Confusion Matrix
 cm = confusion_matrix(y_test, y_pred)
-print("\nConfusion Matrix:")
-print(cm)
-
-# Save the trained model
-joblib.dump(rf_model, 'random_forest_model_11_features.pkl')
-print("Random Forest model saved to random_forest_model_11_features.pkl")
-
-# Visualization
-plt.figure(figsize=(6,5))
-sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=['hi', 'ok'], yticklabels=['hi', 'ok'])
-plt.xlabel('Predicted Label')
-plt.ylabel('True Label')
-plt.title('Confusion Matrix')
+plt.figure(figsize=(6, 5))
+sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
+            xticklabels=labels_list, yticklabels=labels_list)
+plt.xlabel("Predicted")
+plt.ylabel("True")
+plt.title("Confusion Matrix")
+plt.tight_layout()
 plt.show()
 
 # Classification Report Heatmap
-plt.figure(figsize=(6,5))
-sns.heatmap(pd.DataFrame(report).iloc[:-1, :].T, annot=True, cmap='coolwarm')
-plt.title('Classification Report Heatmap')
+plt.figure(figsize=(6, 5))
+sns.heatmap(pd.DataFrame(classification_report(
+    y_test, y_pred, target_names=labels_list, output_dict=True)).iloc[:-1, :].T,
+    annot=True, cmap='coolwarm')
+plt.title("Classification Report Heatmap")
+plt.tight_layout()
 plt.show()
 
-# Feature Importance Plot
+# Feature Importance
 feature_importances = rf_model.feature_importances_
-plt.figure(figsize=(10,5))
+plt.figure(figsize=(10, 5))
 plt.bar(range(len(feature_importances)), feature_importances, color='skyblue')
 plt.xlabel("Feature Index")
 plt.ylabel("Importance")
 plt.title("Feature Importance in Random Forest Model")
+plt.tight_layout()
 plt.show()
