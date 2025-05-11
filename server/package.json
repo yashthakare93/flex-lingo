@@ -4,5 +4,9 @@
     "cors": "^2.8.5",
     "express": "^5.1.0",
     "serialport": "^13.0.0"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "supertest": "^7.1.0"
   }
 }

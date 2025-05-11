@@ -34,7 +34,9 @@
     "yargs-parser": "^21.1.1"
   },
   "scripts": {
-    "start": "concurrently \"cd client && npm start\" \"node server/index.js\""
+    "postinstall": "cd client && npm install && cd ../server && npm install",
+    "build": "cd client && npm run build",
+    "start": "npm run build && node server/index.js"
   },
   "keywords": [],
   "author": "",
