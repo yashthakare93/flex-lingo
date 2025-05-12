@@ -25,7 +25,7 @@ export default function Home() {
 
   const checkDeviceConnection = async () => {
     try {
-      const res = await fetch('http://localhost:5001/status?device=COM7');
+      const res = await fetch('https://flex-lingo-server.onrender.com/status?device=COM7');
       const { connected } = await res.json();
       setDeviceStatus(connected ? 'Device READY' : 'Please connect device');
     } catch (err) {
@@ -47,7 +47,7 @@ export default function Home() {
     setPrediction('');
 
     try {
-      const res = await fetch(`http://localhost:5001/start?device=COM7&model=${selectedModel}`);
+      const res = await fetch(`https://flex-lingo-server.onrender.com/start?device=COM7&model=${selectedModel}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Unknown error');
 
