@@ -5,8 +5,7 @@
     "express": "^5.1.0",
     "serialport": "^13.0.0"
   },
-   "scripts": {
+  "scripts": {
     "test": "jest"
   }
 }
-
