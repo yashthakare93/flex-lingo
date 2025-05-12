@@ -4,11 +4,11 @@ const util = require('util');
 const path = require('path');
 const fs = require('fs');
 const { SerialPort } = require('serialport');
-const { execFile } = require('child_process');
+const { execFile } = require('child_process');  
 const os = require('os');
 
 // Promisified execFile
-const execFile = util.promisify(require('child_process').execFile);
+const execFilePromisified = util.promisify(execFile);  // Assign a different name if you need to promisify
 
 const PYTHON = process.env.PYTHON_PATH || 'python'; // Use python3 if defined in .env
 const PORT = process.env.PORT || 5001;  // Use 5001 if PORT is not set in .env
@@ -70,7 +70,7 @@ app.get('/start', async (req, res) => {
       return res.status(400).json({ error: `Device ${device} not connected` });
     }
 
-    const { stdout, stderr } = await execFile(PYTHON, [scriptPath, device], { maxBuffer: 1024 * 1024 });
+    const { stdout, stderr } = await execFilePromisified(PYTHON, [scriptPath, device], { maxBuffer: 1024 * 1024 });
     
     // Log output
     console.log('Python stdout:', stdout);
@@ -90,7 +90,6 @@ app.get('/start', async (req, res) => {
     res.status(500).json({ error: 'Failed to run prediction script' });
   }
 });
-
 
 // Start the server
 app.listen(PORT, () => console.log(`Server listening on https://flex-lingo-server.onrender.com`));
