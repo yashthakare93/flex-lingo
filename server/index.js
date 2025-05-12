@@ -5,6 +5,7 @@ const path = require('path');
 const fs = require('fs');
 const { SerialPort } = require('serialport');
 const { execFile } = require('child_process');
+const os = require('os');
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -27,9 +28,16 @@ const normalizePort = (portInfo) => String(portInfo.path || portInfo.comName || 
  */
 app.get('/status', async (req, res) => {
   const device = String(req.query.device || 'COM7').toUpperCase();
+  
   try {
     const ports = await SerialPort.list();
     const connected = ports.some((port) => normalizePort(port) === device);
+
+    // If you're on a non-Linux system, handle gracefully
+    if (os.platform() !== 'linux') {
+      console.warn('Non-Linux system detected. Skipping udevadm check.');
+    }
+
     res.json({ connected });
   } catch (err) {
     console.error('Error checking status:', err);

@@ -4,7 +4,6 @@ import React, { useState, useEffect } from 'react';
 const PREDICTION_IMAGES = {
   'HI': 'https://example.com/hi-image.jpg',
   'HELLO': 'https://example.com/hello-image.jpg',
-
 };
 
 const DEFAULT_IMAGE = '/flex.jpeg';
@@ -13,9 +12,28 @@ export default function Home() {
   const [prediction, setPrediction] = useState('');
   const [error, setError] = useState('');
   const [deviceStatus, setDeviceStatus] = useState('Checking...');
-  const [selectedModel, setSelectedModel] = useState('');
+  const [selectedModel, setSelectedModel] = useState(''); // Default state for model selection
   const [isPredicting, setIsPredicting] = useState(false);
   const [predictionHistory, setPredictionHistory] = useState([]);
+
+  // Steps for the tutorial section
+  const steps = [
+    {
+      icon: '👋',
+      title: 'Step 1: Connect the device',
+      text: 'Ensure that your device is connected and ready for use.',
+    },
+    {
+      icon: '🔍',
+      title: 'Step 2: Select a model',
+      text: 'Choose between the Random Forest or BiLSTM model for predictions.',
+    },
+    {
+      icon: '⚡',
+      title: 'Step 3: Start Prediction',
+      text: 'Click the "Start Real-time Prediction" button to begin.',
+    },
+  ];
 
   const speakPrediction = (text) => {
     const msg = new SpeechSynthesisUtterance(text);
@@ -67,7 +85,6 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-200 p-4">
       <div className="max-w-7xl mx-auto flex flex-col lg:flex-row gap-6">
-
         {/* Left Panel */}
         <div className="lg:w-1/2 bg-white rounded-2xl shadow-xl p-6 space-y-6">
           <header className="text-center space-y-2">
@@ -194,37 +211,15 @@ export default function Home() {
           <div className="bg-white rounded-2xl shadow-xl p-6">
             <h2 className="text-xl font-semibold text-gray-900 mb-4">Getting Started</h2>
             <div className="space-y-4">
-              {[
-                {
-                  "icon": "🧤",
-                  "title": "Wear the Smart Glove",
-                  "text": "Gently wear the glove to begin capturing hand movements."
-                },
-                {
-                  "icon": "⚙️",
-                  "title": "Select Model",
-                  "text": "Choose between RF or BiLSTM model for hand gesture prediction."
-                },
-                {
-                  "icon": "🤟",
-                  "title": "Perform Sign Language",
-                  "text": "Make the desired sign language gesture while wearing the glove."
-                },
-                {
-                  "icon": "🗣️",
-                  "title": "See Predictions",
-                  "text": "Click the speaker icon to hear the pronunciation of the predicted gesture."
-                }
-              ]
-                .map((step, index) => (
-                  <div key={index} className="flex items-start gap-4 p-3 hover:bg-gray-50 rounded-xl transition-colors">
-                    <span className="text-2xl p-2">{step.icon}</span>
-                    <div>
-                      <h3 className="font-medium text-gray-900">{step.title}</h3>
-                      <p className="text-sm text-gray-500">{step.text}</p>
-                    </div>
+              {steps.map((step, index) => (
+                <div key={index} className="flex items-start gap-4 p-3 hover:bg-gray-50 rounded-xl transition-colors">
+                  <span className="text-2xl p-2">{step.icon}</span>
+                  <div>
+                    <h3 className="font-medium text-gray-900">{step.title}</h3>
+                    <p className="text-sm text-gray-500">{step.text}</p>
                   </div>
-                ))}
+                </div>
+              ))}
             </div>
           </div>
 
@@ -240,44 +235,22 @@ export default function Home() {
               </button>
             </div>
 
-            <div className="space-y-3 h-96 overflow-y-auto pr-2">
-              {predictionHistory.map((entry, index) => (
-                <div key={index} className="flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors">
-                  <div>
-                    <span className="text-xs font-medium text-blue-600 bg-blue-100 px-2 py-1 rounded-full">
-                      {entry.model.toUpperCase()}
-                    </span>
-                    <p className="mt-1 text-gray-900">{entry.result}</p>
-                  </div>
-                  <span className="text-xs text-gray-400">
-                    {new Date(entry.timestamp).toLocaleTimeString([], {
-                      hour: '2-digit',
-                      minute: '2-digit'
-                    })}
+            <div className="space-y-3">
+              {predictionHistory.map((history, index) => (
+                <div key={index} className="flex items-start gap-4 p-3 hover:bg-gray-50 rounded-xl transition-colors">
+                  <span className="text-sm text-gray-500">
+                    {new Date(history.timestamp).toLocaleString()}
                   </span>
+                  <div>
+                    <p className="font-medium">{history.result}</p>
+                    <p className="text-xs text-gray-500">{history.model}</p>
+                  </div>
                 </div>
               ))}
-
-              {!predictionHistory.length && (
-                <div className="py-8">
-                  <p className="text-gray-400">No predictions yet</p>
-                  <p className="text-sm text-gray-400 mt-1">Start translating to see history</p>
-                </div>
-              )}
             </div>
           </div>
         </div>
       </div>
-
-      {/* Error Toast */}
-      {error && (
-        <div className="fixed bottom-4 right-4 bg-red-100 border border-red-200 text-red-700 px-4 py-2 rounded-xl flex items-center gap-2 animate-slide-up">
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-          </svg>
-          <span>{error}</span>
-        </div>
-      )}
     </div>
   );
 }
