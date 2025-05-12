@@ -4,11 +4,8 @@ const util = require('util');
 const path = require('path');
 const fs = require('fs');
 const { SerialPort } = require('serialport');
-const { execFile } = require('child_process');
+const { execFile } = require('child_process'); // Removed redundant declaration
 const os = require('os');
-
-// Promisified execFile
-const execFile = util.promisify(require('child_process').execFile);
 
 const PYTHON = process.env.PYTHON_PATH || 'python'; // Use python3 if defined in .env
 const PORT = process.env.PORT || 5001;  // Use 5001 if PORT is not set in .env
@@ -27,23 +24,15 @@ app.get('/status', async (req, res) => {
   const device = String(req.query.device || 'COM7').toUpperCase();
   
   try {
-    // Check if the platform is Linux before trying to use udevadm
-    if (os.platform() === 'linux') {
-      // Use udevadm only on Linux systems
-      const { stdout } = await execFile('udevadm', ['info', '-e']);
-      // Process stdout to retrieve the connected ports
-      const ports = processPorts(stdout);
-      const connected = ports.some((port) => normalizePort(port) === device);
-      res.json({ connected });
-    } else if (os.platform() === 'win32') {
-      // For Windows, use SerialPort list to get available ports
-      const ports = await SerialPort.list();
-      const connected = ports.some((port) => normalizePort(port) === device);
-      res.json({ connected });
-    } else {
-      console.warn('Non-Linux/Windows system detected. Returning empty port list.');
-      res.json({ connected: false });
+    const ports = await SerialPort.list();
+    const connected = ports.some((port) => normalizePort(port) === device);
+
+    // If you're on a non-Linux system, handle gracefully
+    if (os.platform() !== 'linux') {
+      console.warn('Non-Linux system detected. Skipping Linux-specific checks.');
     }
+
+    res.json({ connected });
   } catch (err) {
     console.error('Error checking status:', err);
     res.status(500).json({ error: 'Failed to check device status' });
