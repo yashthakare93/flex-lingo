@@ -7,25 +7,22 @@ const { SerialPort } = require('serialport');
 const { execFile } = require('child_process');
 const os = require('os');
 
-const app = express();
-const PORT = process.env.PORT || 5001;
-const PYTHON = process.env.PYTHON_PATH || 'python';
+// Promisified execFile
+const execFile = util.promisify(require('child_process').execFile);
 
-// Promisify execFile for async/await usage
-const execFileAsync = util.promisify(execFile);
+const PYTHON = process.env.PYTHON_PATH || 'python'; // Use python3 if defined in .env
+const PORT = process.env.PORT || 5001;  // Use 5001 if PORT is not set in .env
+const app = express();
 
 app.use(cors());
 
-// Utility: Check if a file exists
-const scriptExists = (filePath) => fs.existsSync(filePath);
+// Check if file exists
+const scriptExists = (p) => fs.existsSync(p);
 
-// Utility: Normalize serial port name to compare
-const normalizePort = (portInfo) => String(portInfo.path || portInfo.comName || '').toUpperCase();
+// Safe normalize port
+const normalizePort = (info) => String(info.path ?? info.comName ?? '').toUpperCase();
 
-/**
- * GET /status?device=COM7
- * Checks if the device is connected
- */
+// Status Route to check if device is connected
 app.get('/status', async (req, res) => {
   const device = String(req.query.device || 'COM7').toUpperCase();
   
@@ -45,10 +42,7 @@ app.get('/status', async (req, res) => {
   }
 });
 
-/**
- * GET /start?device=COM7&model=rf
- * Starts prediction using specified model
- */
+// Start Route to run prediction
 app.get('/start', async (req, res) => {
   const device = String(req.query.device || '').toUpperCase();
   const model = String(req.query.model || '').toLowerCase();
@@ -76,10 +70,14 @@ app.get('/start', async (req, res) => {
       return res.status(400).json({ error: `Device ${device} not connected` });
     }
 
-    const { stdout, stderr } = await execFileAsync(PYTHON, [scriptPath, device], { maxBuffer: 1024 * 1024 });
+    const { stdout, stderr } = await execFile(PYTHON, [scriptPath, device], { maxBuffer: 1024 * 1024 });
+    
+    // Log output
+    console.log('Python stdout:', stdout);
+    console.error('Python stderr:', stderr);
 
     if (stderr) {
-      console.warn('Python stderr:', stderr);
+      console.error(`Python stderr:`, stderr);
     }
 
     const lines = stdout.trim().split(/\r?\n/);
@@ -93,20 +91,6 @@ app.get('/start', async (req, res) => {
   }
 });
 
-// Serve static files based on the environment
-if (process.env.NODE_ENV === 'production') {
-  // Serve React production build
-  app.use(express.static(path.join(__dirname, 'client/build')));
 
-  // Handle all other routes by returning the React app's index.html
-  app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, 'client/build', 'index.html'));
-  });
-} else {
-  // In development mode, serve API routes or development assets
-  console.log('Running in development mode...');
-}
-
-app.listen(PORT, () => {
-  console.log(`✅ Server listening on http://localhost:${PORT}`);
-});
+// Start the server
+app.listen(PORT, () => console.log(`Server listening on https://flex-lingo-server.onrender.com`));
