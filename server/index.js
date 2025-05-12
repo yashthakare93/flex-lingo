@@ -35,7 +35,7 @@ app.get('/status', async (req, res) => {
 
     // If you're on a non-Linux system, handle gracefully
     if (os.platform() !== 'linux') {
-      console.warn('Non-Linux system detected. Skipping udevadm check.');
+      console.warn('Non-Linux system detected. Skipping Linux-specific checks.');
     }
 
     res.json({ connected });
@@ -93,15 +93,19 @@ app.get('/start', async (req, res) => {
   }
 });
 
-// Serve static files from React build (production)
-// if (process.env.NODE_ENV === 'production') {
-//   app.use(express.static(path.join(__dirname, 'client/build')));
+// Serve static files based on the environment
+if (process.env.NODE_ENV === 'production') {
+  // Serve React production build
+  app.use(express.static(path.join(__dirname, 'client/build')));
 
-//   // Handle all other routes by returning the React app's index.html
-//   app.get('*', (req, res) => {
-//     res.sendFile(path.join(__dirname, 'client/build', 'index.html'));
-//   });
-// }
+  // Handle all other routes by returning the React app's index.html
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, 'client/build', 'index.html'));
+  });
+} else {
+  // In development mode, serve API routes or development assets
+  console.log('Running in development mode...');
+}
 
 app.listen(PORT, () => {
   console.log(`✅ Server listening on http://localhost:${PORT}`);
